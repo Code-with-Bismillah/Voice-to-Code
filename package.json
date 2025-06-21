@@ -1,0 +1,152 @@
+{
+  "name": "convert-voice-to-code",
+  "displayName": "Voice-to-Code",
+  "description": "Convert your voice to code using speech recognition",
+  "version": "1.0.0",
+  "publisher": "CodewithBismillah",
+  "author": {
+    "name": "Your Name",
+    "email": "your.email@example.com"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mubashir1837/voice-to-code.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mubashir1837/voice-to-code/issues"
+  },
+  "homepage": "https://github.com/mubashir1837/voice-to-code#readme",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": ["Other", "Machine Learning"],
+  "keywords": ["voice", "speech", "code generation", "accessibility", "ai", "speech-to-text", "voice-control"],
+  "activationEvents": [
+    "onCommand:voice-to-code.startListening",
+    "onCommand:voice-to-code.stopListening",
+    "onCommand:voice-to-code.toggleListening"
+  ],
+  "main": "./out/extension.js",
+  "icon": "media/icon.png",
+  "contributes": {
+    "commands": [
+      {
+        "command": "voice-to-code.startListening",
+        "title": "Start Voice Listening",
+        "category": "Voice to Code",
+        "icon": "$(mic)"
+      },
+      {
+        "command": "voice-to-code.stopListening",
+        "title": "Stop Voice Listening",
+        "category": "Voice to Code",
+        "icon": "$(mic-off)"
+      },
+      {
+        "command": "voice-to-code.toggleListening",
+        "title": "Toggle Voice Listening",
+        "category": "Voice to Code",
+        "icon": "$(mic)"
+      },
+      {
+        "command": "voice-to-code.insertCode",
+        "title": "Insert Code from Voice",
+        "category": "Voice to Code"
+      },
+      {
+        "command": "voice-to-code.createNewFile",
+        "title": "Create New File for Voice Coding",
+        "category": "Voice to Code",
+        "icon": "$(new-file)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "voice-to-code.toggleListening",
+        "key": "ctrl+shift+v",
+        "mac": "cmd+shift+v",
+        "when": "editorTextFocus"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "voice-to-code.startListening",
+          "group": "voice-to-code",
+          "when": "editorTextFocus"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "voice-to-code.startListening"
+        },
+        {
+          "command": "voice-to-code.stopListening"
+        },
+        {
+          "command": "voice-to-code.toggleListening"
+        },
+        {
+          "command": "voice-to-code.createNewFile"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Voice to Code",
+      "properties": {
+        "voice-to-code.language": {
+          "type": "string",
+          "default": "en-US",
+          "description": "Language for speech recognition",
+          "enum": ["en-US", "en-GB", "es-ES", "fr-FR", "de-DE", "it-IT", "pt-BR", "ru-RU", "ja-JP", "ko-KR", "zh-CN"],
+          "enumDescriptions": [
+            "English (United States)",
+            "English (United Kingdom)",
+            "Spanish (Spain)",
+            "French (France)",
+            "German (Germany)",
+            "Italian (Italy)",
+            "Portuguese (Brazil)",
+            "Russian (Russia)",
+            "Japanese (Japan)",
+            "Korean (Korea)",
+            "Chinese (Simplified)"
+          ]
+        },
+        "voice-to-code.pythonPath": {
+          "type": "string",
+          "default": "python",
+          "description": "Path to Python executable"
+        },
+        "voice-to-code.autoInsert": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically insert recognized code"
+        },
+        "voice-to-code.showPreview": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show preview before inserting code"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.74.0",
+    "@types/node": "16.x",
+    "typescript": "^4.9.4",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "dependencies": {}
+}
