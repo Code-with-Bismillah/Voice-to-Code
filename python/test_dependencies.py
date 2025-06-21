@@ -74,6 +74,8 @@ def main():
             
         print("\nYou can now use the Voice to Code extension!")
         
+        test_audio_transcription()
+        
     else:
         print("✗ Missing required dependencies!")
         print("\nTo install missing dependencies, run:")
@@ -87,6 +89,33 @@ def main():
             missing.append("moviepy")
             
         print(f"pip install {' '.join(missing)}")
+
+def test_audio_transcription():
+    """Test basic audio transcription capability"""
+    print("\n" + "=" * 40)
+    print("Testing Audio Transcription Capability")
+    print("=" * 40)
+    
+    try:
+        import speech_recognition as sr
+        from pydub import AudioSegment
+        
+        # Test speech recognition
+        r = sr.Recognizer()
+        print("✓ Speech recognizer initialized")
+        
+        # Test pydub audio loading (create a silent audio for testing)
+        silent_audio = AudioSegment.silent(duration=1000)  # 1 second of silence
+        print("✓ Pydub audio processing works")
+        
+        print("✓ Basic audio transcription should work!")
+        print("\nRecommendation: Try transcribing an audio file (.mp3, .wav) first")
+        
+        return True
+        
+    except Exception as e:
+        print(f"✗ Audio transcription test failed: {e}")
+        return False
 
 if __name__ == "__main__":
     main()
