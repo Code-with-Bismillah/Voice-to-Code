@@ -69,6 +69,10 @@ export function activate(context: vscode.ExtensionContext) {
     await installPythonDependencies()
   })
 
+  const testMicrophoneCommand = vscode.commands.registerCommand("voice-to-code.testMicrophone", async () => {
+    await testMicrophoneAccess()
+  })
+
   context.subscriptions.push(
     startListeningCommand,
     stopListeningCommand,
@@ -79,8 +83,50 @@ export function activate(context: vscode.ExtensionContext) {
     transcribeMediaCommand,
     transcribeCurrentMediaCommand,
     installDependenciesCommand,
+    testMicrophoneCommand,
     statusBarItem,
   )
+}
+
+async function testMicrophoneAccess() {
+  const message = `
+**Microphone Access Help**
+
+**For Codespaces/Browser:**
+1. Click the 🔒 lock icon in your browser address bar
+2. Allow microphone access for this site
+3. Refresh the page if needed
+
+**For Desktop VS Code:**
+1. Check system microphone permissions
+2. Ensure no other apps are using the microphone
+3. Try restarting VS Code
+
+**Test Commands:**
+- Use "Voice to Code: Check Python Setup" first
+- Try "Voice to Code: Start Voice Listening"
+- Speak clearly: "hello world" or "function console log hello"
+
+**Troubleshooting:**
+- Check if microphone works in other apps
+- Try different browsers (Chrome works best)
+- Ensure internet connection for Google Speech API
+  `
+
+  const action = await vscode.window.showInformationMessage(
+    "Microphone access is required for voice recognition. Check the help for setup instructions.",
+    "Show Help",
+    "Test Now",
+    "Open Settings",
+  )
+
+  if (action === "Show Help") {
+    vscode.window.showInformationMessage(message, { modal: true })
+  } else if (action === "Test Now") {
+    vscode.commands.executeCommand("voice-to-code.startListening")
+  } else if (action === "Open Settings") {
+    vscode.commands.executeCommand("workbench.action.openSettings", "voice-to-code")
+  }
 }
 
 function updateStatusBar() {
@@ -100,7 +146,7 @@ async function installPythonDependencies() {
     const pythonPath = await findPythonExecutable()
 
     const action = await vscode.window.showInformationMessage(
-      "This will install required Python packages: SpeechRecognition, pydub, moviepy, ffmpeg-python",
+      "This will install required Python packages: SpeechRecognition, pydub, moviepy",
       "Install Now",
       "Cancel",
     )
@@ -108,12 +154,10 @@ async function installPythonDependencies() {
     if (action === "Install Now") {
       const terminal = vscode.window.createTerminal("Voice to Code - Install Dependencies")
       terminal.sendText(`${pythonPath} -m pip install --upgrade pip`)
-      terminal.sendText(`${pythonPath} -m pip install SpeechRecognition pydub moviepy ffmpeg-python`)
+      terminal.sendText(`${pythonPath} -m pip install SpeechRecognition pydub moviepy`)
       terminal.show()
 
-      vscode.window.showInformationMessage(
-        "Installing dependencies... Check the terminal for progress. You may also need to install FFmpeg separately for video support.",
-      )
+      vscode.window.showInformationMessage("Installing dependencies... Check the terminal for progress.")
     }
   } catch (error) {
     vscode.window.showErrorMessage("Python not found. Please install Python first.")
@@ -132,10 +176,6 @@ async function findPythonExecutable(): Promise<string> {
     "C:\\Python310\\python.exe",
     "C:\\Python311\\python.exe",
     "C:\\Python312\\python.exe",
-    "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python39\\python.exe",
-    "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python310\\python.exe",
-    "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
-    "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
   ]
 
   // First try the configured path
@@ -207,13 +247,15 @@ function showPythonSetupHelp() {
 
 **Install Dependencies:**
 After Python is set up, run:
-\`pip install SpeechRecognition pydub moviepy ffmpeg-python\`
-
-**For Video Support (Recommended):**
-Install FFmpeg from https://ffmpeg.org/download.html
+\`pip install SpeechRecognition pydub moviepy\`
 
 **Test Python:**
 Use the command "Voice to Code: Check Python Setup" to verify your installation.
+
+**Microphone Issues:**
+- Allow microphone access in your browser
+- Check system microphone permissions
+- Ensure internet connection for Google Speech API
   `
 
   vscode.window.showInformationMessage(helpMessage, { modal: true })
@@ -378,7 +420,7 @@ async function performMediaTranscription(context: vscode.ExtensionContext, media
               vscode.commands.executeCommand("voice-to-code.installDependencies")
             } else if (action === "Manual Install") {
               const terminal = vscode.window.createTerminal("Voice to Code Setup")
-              terminal.sendText("pip install SpeechRecognition pydub moviepy ffmpeg-python")
+              terminal.sendText("pip install SpeechRecognition pydub moviepy")
               terminal.show()
             }
           })
@@ -545,8 +587,20 @@ async function startListening(context: vscode.ExtensionContext) {
               showPythonSetupHelp()
             }
           })
-      } else if (error.includes("Microphone initialization failed")) {
-        vscode.window.showErrorMessage("Microphone access failed. Please check microphone permissions and try again.")
+      } else if (error.includes("Microphone initialization failed") || error.includes("microphone")) {
+        vscode.window
+          .showErrorMessage(
+            "Microphone access failed. Please check microphone permissions and try again.",
+            "Help",
+            "Test Microphone",
+          )
+          .then((action) => {
+            if (action === "Help") {
+              vscode.commands.executeCommand("voice-to-code.testMicrophone")
+            } else if (action === "Test Microphone") {
+              vscode.commands.executeCommand("voice-to-code.testMicrophone")
+            }
+          })
       }
     })
 
