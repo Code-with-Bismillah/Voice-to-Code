@@ -54,6 +54,21 @@ export function activate(context: vscode.ExtensionContext) {
     await checkAndDisplayPythonStatus()
   })
 
+  const transcribeMediaCommand = vscode.commands.registerCommand("voice-to-code.transcribeMedia", async () => {
+    await transcribeMediaFile(context)
+  })
+
+  const transcribeCurrentMediaCommand = vscode.commands.registerCommand(
+    "voice-to-code.transcribeCurrentMedia",
+    async () => {
+      await transcribeCurrentMediaFile(context)
+    },
+  )
+
+  const installDependenciesCommand = vscode.commands.registerCommand("voice-to-code.installDependencies", async () => {
+    await installPythonDependencies()
+  })
+
   context.subscriptions.push(
     startListeningCommand,
     stopListeningCommand,
@@ -61,6 +76,9 @@ export function activate(context: vscode.ExtensionContext) {
     insertCodeCommand,
     createNewFileCommand,
     checkPythonCommand,
+    transcribeMediaCommand,
+    transcribeCurrentMediaCommand,
+    installDependenciesCommand,
     statusBarItem,
   )
 }
@@ -74,6 +92,31 @@ function updateStatusBar() {
     statusBarItem.text = "$(mic-off) Voice to Code"
     statusBarItem.tooltip = "Click to start voice listening"
     statusBarItem.backgroundColor = undefined
+  }
+}
+
+async function installPythonDependencies() {
+  try {
+    const pythonPath = await findPythonExecutable()
+
+    const action = await vscode.window.showInformationMessage(
+      "This will install required Python packages: SpeechRecognition, pydub, moviepy, ffmpeg-python",
+      "Install Now",
+      "Cancel",
+    )
+
+    if (action === "Install Now") {
+      const terminal = vscode.window.createTerminal("Voice to Code - Install Dependencies")
+      terminal.sendText(`${pythonPath} -m pip install --upgrade pip`)
+      terminal.sendText(`${pythonPath} -m pip install SpeechRecognition pydub moviepy ffmpeg-python`)
+      terminal.show()
+
+      vscode.window.showInformationMessage(
+        "Installing dependencies... Check the terminal for progress. You may also need to install FFmpeg separately for video support.",
+      )
+    }
+  } catch (error) {
+    vscode.window.showErrorMessage("Python not found. Please install Python first.")
   }
 }
 
@@ -162,20 +205,264 @@ function showPythonSetupHelp() {
 2. Search for "voice-to-code.pythonPath"
 3. Set the full path to your Python executable
 
-**Common Python Paths:**
-- Windows: C:\\Python39\\python.exe
-- macOS: /usr/local/bin/python3
-- Linux: /usr/bin/python3
-
 **Install Dependencies:**
 After Python is set up, run:
-\`pip install SpeechRecognition\`
+\`pip install SpeechRecognition pydub moviepy ffmpeg-python\`
+
+**For Video Support (Recommended):**
+Install FFmpeg from https://ffmpeg.org/download.html
 
 **Test Python:**
 Use the command "Voice to Code: Check Python Setup" to verify your installation.
   `
 
   vscode.window.showInformationMessage(helpMessage, { modal: true })
+}
+
+async function transcribeMediaFile(context: vscode.ExtensionContext) {
+  try {
+    // Show file picker for media files
+    const mediaFiles = await vscode.window.showOpenDialog({
+      canSelectFiles: true,
+      canSelectFolders: false,
+      canSelectMany: false,
+      filters: {
+        "Media Files": [
+          "mp3",
+          "wav",
+          "m4a",
+          "ogg",
+          "flac",
+          "aac",
+          "wma",
+          "opus",
+          "webm",
+          "mp4",
+          "avi",
+          "mkv",
+          "mov",
+          "wmv",
+          "flv",
+          "m4v",
+          "3gp",
+        ],
+        "Audio Files": ["mp3", "wav", "m4a", "ogg", "flac", "aac", "wma", "opus", "webm"],
+        "Video Files": ["mp4", "avi", "mkv", "mov", "wmv", "flv", "m4v", "3gp"],
+      },
+      title: "Select Media File to Transcribe",
+    })
+
+    if (!mediaFiles || mediaFiles.length === 0) {
+      return
+    }
+
+    const mediaFilePath = mediaFiles[0].fsPath
+    await performMediaTranscription(context, mediaFilePath)
+  } catch (error) {
+    vscode.window.showErrorMessage(`Error selecting media file: ${error}`)
+  }
+}
+
+async function transcribeCurrentMediaFile(context: vscode.ExtensionContext) {
+  const activeEditor = vscode.window.activeTextEditor
+  if (!activeEditor) {
+    vscode.window.showErrorMessage("No active file. Please open a media file first.")
+    return
+  }
+
+  const currentFilePath = activeEditor.document.uri.fsPath
+  const fileExtension = path.extname(currentFilePath).toLowerCase()
+
+  // Check if current file is a media file
+  const mediaExtensions = [
+    ".mp3",
+    ".wav",
+    ".m4a",
+    ".ogg",
+    ".flac",
+    ".aac",
+    ".wma",
+    ".opus",
+    ".webm",
+    ".mp4",
+    ".avi",
+    ".mkv",
+    ".mov",
+    ".wmv",
+    ".flv",
+    ".m4v",
+    ".3gp",
+  ]
+
+  if (!mediaExtensions.includes(fileExtension)) {
+    vscode.window.showErrorMessage(
+      "Current file is not a media file. Please open a media file or use 'Transcribe Media File' command.",
+    )
+    return
+  }
+
+  await performMediaTranscription(context, currentFilePath)
+}
+
+async function performMediaTranscription(context: vscode.ExtensionContext, mediaFilePath: string) {
+  try {
+    const pythonPath = await findPythonExecutable()
+    const config = vscode.workspace.getConfiguration("voice-to-code")
+    const language = config.get<string>("language", "en-US")
+
+    // Check file size to determine if we should use chunk mode
+    const stats = fs.statSync(mediaFilePath)
+    const fileSizeMB = stats.size / (1024 * 1024)
+    const useChunkMode = fileSizeMB > 25 // Use chunks for files larger than 25MB
+
+    const pythonScriptPath = path.join(context.extensionPath, "python", "audio_transcribe.py")
+
+    const fileName = path.basename(mediaFilePath)
+    const fileType =
+      path.extname(mediaFilePath).toLowerCase().includes("mp4") ||
+      path.extname(mediaFilePath).toLowerCase().includes("avi") ||
+      path.extname(mediaFilePath).toLowerCase().includes("mkv")
+        ? "video"
+        : "audio"
+
+    vscode.window.showInformationMessage(`Transcribing ${fileType} file: ${fileName}...`)
+
+    const transcriptionProcess = spawn(
+      pythonPath,
+      [pythonScriptPath, mediaFilePath, language, useChunkMode.toString()],
+      {
+        cwd: path.join(context.extensionPath, "python"),
+      },
+    )
+
+    let transcriptionText = ""
+    let isCapturing = false
+
+    transcriptionProcess.stdout?.on("data", (data) => {
+      const output = data.toString()
+
+      if (output.includes("TRANSCRIPTION_START")) {
+        isCapturing = true
+        return
+      }
+
+      if (output.includes("TRANSCRIPTION_END")) {
+        isCapturing = false
+        // Process the complete transcription
+        if (transcriptionText.trim()) {
+          handleTranscriptionResult(transcriptionText.trim(), mediaFilePath)
+        } else {
+          vscode.window.showWarningMessage("No speech detected in the media file.")
+        }
+        return
+      }
+
+      if (isCapturing) {
+        transcriptionText += output
+      }
+    })
+
+    transcriptionProcess.stderr?.on("data", (data) => {
+      const error = data.toString()
+      console.log("Transcription progress:", error)
+
+      if (error.includes("Missing dependencies")) {
+        vscode.window
+          .showErrorMessage(
+            "Required Python modules not found. Click 'Install Dependencies' to install them automatically.",
+            "Install Dependencies",
+            "Manual Install",
+          )
+          .then((action) => {
+            if (action === "Install Dependencies") {
+              vscode.commands.executeCommand("voice-to-code.installDependencies")
+            } else if (action === "Manual Install") {
+              const terminal = vscode.window.createTerminal("Voice to Code Setup")
+              terminal.sendText("pip install SpeechRecognition pydub moviepy ffmpeg-python")
+              terminal.show()
+            }
+          })
+      }
+    })
+
+    transcriptionProcess.on("close", (code) => {
+      if (code === 0) {
+        if (!transcriptionText.trim()) {
+          vscode.window.showWarningMessage("Transcription completed but no speech was detected.")
+        }
+      } else {
+        vscode.window.showErrorMessage(`Transcription failed with error code: ${code}`)
+      }
+    })
+
+    transcriptionProcess.on("error", (error) => {
+      vscode.window.showErrorMessage(`Failed to start transcription: ${error.message}`)
+    })
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error)
+
+    if (errorMessage.includes("Python executable not found")) {
+      const action = await vscode.window.showErrorMessage(
+        "Python not found! Voice to Code requires Python to be installed.",
+        "Install Python",
+        "Configure Path",
+        "Help",
+      )
+
+      if (action === "Install Python") {
+        vscode.env.openExternal(vscode.Uri.parse("https://www.python.org/downloads/"))
+      } else if (action === "Configure Path") {
+        vscode.commands.executeCommand("workbench.action.openSettings", "voice-to-code.pythonPath")
+      } else if (action === "Help") {
+        showPythonSetupHelp()
+      }
+    } else {
+      vscode.window.showErrorMessage(`Error transcribing media: ${errorMessage}`)
+    }
+  }
+}
+
+async function handleTranscriptionResult(transcriptionText: string, mediaFilePath: string) {
+  const config = vscode.workspace.getConfiguration("voice-to-code")
+  const autoInsert = config.get<boolean>("autoInsert", true)
+
+  // Process the transcription to code
+  const processedCode = processVoiceToCode(transcriptionText)
+
+  if (autoInsert) {
+    // Create a new document with the transcription
+    const fileName = path.basename(mediaFilePath, path.extname(mediaFilePath))
+    const doc = await vscode.workspace.openTextDocument({
+      content: `// Transcription from: ${fileName}\n// Original text: ${transcriptionText}\n\n${processedCode}`,
+      language: "javascript",
+    })
+    await vscode.window.showTextDocument(doc)
+    vscode.window.showInformationMessage(
+      `Media transcribed successfully! Generated ${processedCode.length} characters of code.`,
+    )
+  } else {
+    // Show preview
+    const action = await vscode.window.showInformationMessage(
+      `Transcription: "${transcriptionText}"\nGenerated code: ${processedCode}`,
+      "Insert Code",
+      "Create New File",
+      "Copy to Clipboard",
+    )
+
+    if (action === "Insert Code") {
+      insertCodeIntoEditor(processedCode)
+    } else if (action === "Create New File") {
+      const fileName = path.basename(mediaFilePath, path.extname(mediaFilePath))
+      const doc = await vscode.workspace.openTextDocument({
+        content: `// Transcription from: ${fileName}\n// Original text: ${transcriptionText}\n\n${processedCode}`,
+        language: "javascript",
+      })
+      await vscode.window.showTextDocument(doc)
+    } else if (action === "Copy to Clipboard") {
+      await vscode.env.clipboard.writeText(processedCode)
+      vscode.window.showInformationMessage("Code copied to clipboard!")
+    }
+  }
 }
 
 async function startListening(context: vscode.ExtensionContext) {
@@ -247,15 +534,13 @@ async function startListening(context: vscode.ExtensionContext) {
       if (error.includes("ModuleNotFoundError")) {
         vscode.window
           .showErrorMessage(
-            "Required Python modules not found. Please install: pip install SpeechRecognition",
+            "Required Python modules not found. Click 'Install Dependencies' to install them automatically.",
             "Install Dependencies",
             "Help",
           )
           .then((action) => {
             if (action === "Install Dependencies") {
-              const terminal = vscode.window.createTerminal("Voice to Code Setup")
-              terminal.sendText("pip install SpeechRecognition")
-              terminal.show()
+              vscode.commands.executeCommand("voice-to-code.installDependencies")
             } else if (action === "Help") {
               showPythonSetupHelp()
             }

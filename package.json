@@ -3,7 +3,7 @@
   "displayName": "Voice-to-Code",
   "description": "Convert your voice to code using speech recognition",
    "publisher": "CodewithBismillah",
-  "version": "1.1.2",
+  "version": "1.1.4",
   "pricing": "Free",
   "sponsor": {
     "url": "https://patreon.com/mubashir1837"
@@ -25,8 +25,21 @@
   "engines": {
     "vscode": "^1.74.0"
   },
- "categories": ["Other", "Machine Learning"],
-  "keywords": ["voice", "speech", "code generation", "accessibility", "ai", "speech-to-text", "voice-control"],
+  "categories": ["Other", "Machine Learning"],
+  "keywords": [
+    "voice",
+    "speech",
+    "code generation",
+    "accessibility",
+    "ai",
+    "speech-to-text",
+    "voice-control",
+    "transcription",
+    "audio",
+    "video",
+    "mp4",
+    "opus"
+  ],
   "activationEvents": [
     "onCommand:voice-to-code.startListening",
     "onCommand:voice-to-code.stopListening",
@@ -70,6 +83,24 @@
         "title": "Check Python Setup",
         "category": "Voice to Code",
         "icon": "$(search)"
+      },
+      {
+        "command": "voice-to-code.transcribeMedia",
+        "title": "Transcribe Media File",
+        "category": "Voice to Code",
+        "icon": "$(file-media)"
+      },
+      {
+        "command": "voice-to-code.transcribeCurrentMedia",
+        "title": "Transcribe Current Media File",
+        "category": "Voice to Code",
+        "icon": "$(play)"
+      },
+      {
+        "command": "voice-to-code.installDependencies",
+        "title": "Install Python Dependencies",
+        "category": "Voice to Code",
+        "icon": "$(cloud-download)"
       }
     ],
     "keybindings": [
@@ -78,6 +109,11 @@
         "key": "ctrl+shift+v",
         "mac": "cmd+shift+v",
         "when": "editorTextFocus"
+      },
+      {
+        "command": "voice-to-code.transcribeMedia",
+        "key": "ctrl+shift+t",
+        "mac": "cmd+shift+t"
       }
     ],
     "menus": {
@@ -86,6 +122,18 @@
           "command": "voice-to-code.startListening",
           "group": "voice-to-code",
           "when": "editorTextFocus"
+        },
+        {
+          "command": "voice-to-code.transcribeCurrentMedia",
+          "group": "voice-to-code",
+          "when": "resourceExtname =~ /\\.(mp3|wav|m4a|ogg|flac|aac|wma|opus|webm|mp4|avi|mkv|mov|wmv|flv|m4v|3gp)$/"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "voice-to-code.transcribeCurrentMedia",
+          "group": "voice-to-code",
+          "when": "resourceExtname =~ /\\.(mp3|wav|m4a|ogg|flac|aac|wma|opus|webm|mp4|avi|mkv|mov|wmv|flv|m4v|3gp)$/"
         }
       ],
       "commandPalette": [
@@ -103,6 +151,16 @@
         },
         {
           "command": "voice-to-code.checkPython"
+        },
+        {
+          "command": "voice-to-code.transcribeMedia"
+        },
+        {
+          "command": "voice-to-code.transcribeCurrentMedia",
+          "when": "resourceExtname =~ /\\.(mp3|wav|m4a|ogg|flac|aac|wma|opus|webm|mp4|avi|mkv|mov|wmv|flv|m4v|3gp)$/"
+        },
+        {
+          "command": "voice-to-code.installDependencies"
         }
       ]
     },
