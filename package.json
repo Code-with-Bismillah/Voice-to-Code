@@ -25,7 +25,7 @@
   "engines": {
     "vscode": "^1.74.0"
   },
-  "categories": ["Other", "Machine Learning"],
+ "categories": ["Other", "Machine Learning"],
   "keywords": ["voice", "speech", "code generation", "accessibility", "ai", "speech-to-text", "voice-control"],
   "activationEvents": [
     "onCommand:voice-to-code.startListening",
@@ -64,6 +64,12 @@
         "title": "Create New File for Voice Coding",
         "category": "Voice to Code",
         "icon": "$(new-file)"
+      },
+      {
+        "command": "voice-to-code.checkPython",
+        "title": "Check Python Setup",
+        "category": "Voice to Code",
+        "icon": "$(search)"
       }
     ],
     "keybindings": [
@@ -94,6 +100,9 @@
         },
         {
           "command": "voice-to-code.createNewFile"
+        },
+        {
+          "command": "voice-to-code.checkPython"
         }
       ]
     },
@@ -122,7 +131,7 @@
         "voice-to-code.pythonPath": {
           "type": "string",
           "default": "python",
-          "description": "Path to Python executable"
+          "description": "Path to Python executable (e.g., python, python3, or full path like C:\\Python39\\python.exe)"
         },
         "voice-to-code.autoInsert": {
           "type": "boolean",

@@ -69,7 +69,10 @@ function activate(context) {
             vscode.window.showErrorMessage("Failed to create new file");
         }
     });
-    context.subscriptions.push(startListeningCommand, stopListeningCommand, toggleListeningCommand, insertCodeCommand, createNewFileCommand, statusBarItem);
+    const checkPythonCommand = vscode.commands.registerCommand("voice-to-code.checkPython", async () => {
+        await checkAndDisplayPythonStatus();
+    });
+    context.subscriptions.push(startListeningCommand, stopListeningCommand, toggleListeningCommand, insertCodeCommand, createNewFileCommand, checkPythonCommand, statusBarItem);
 }
 exports.activate = activate;
 function updateStatusBar() {
@@ -83,6 +86,94 @@ function updateStatusBar() {
         statusBarItem.tooltip = "Click to start voice listening";
         statusBarItem.backgroundColor = undefined;
     }
+}
+async function findPythonExecutable() {
+    const possiblePaths = [
+        "python3",
+        "python",
+        "/usr/bin/python3",
+        "/usr/bin/python",
+        "/usr/local/bin/python3",
+        "/usr/local/bin/python",
+        "C:\\Python39\\python.exe",
+        "C:\\Python310\\python.exe",
+        "C:\\Python311\\python.exe",
+        "C:\\Python312\\python.exe",
+        "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python39\\python.exe",
+        "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python310\\python.exe",
+        "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+        "C:\\Users\\%USERNAME%\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+    ];
+    // First try the configured path
+    const config = vscode.workspace.getConfiguration("voice-to-code");
+    const configuredPath = config.get("pythonPath", "python");
+    for (const pythonPath of [configuredPath, ...possiblePaths]) {
+        try {
+            await checkPythonAvailability(pythonPath);
+            return pythonPath;
+        }
+        catch {
+            continue;
+        }
+    }
+    throw new Error("Python executable not found");
+}
+async function checkAndDisplayPythonStatus() {
+    try {
+        const pythonPath = await findPythonExecutable();
+        // Check Python version
+        const versionCheck = (0, child_process_1.spawn)(pythonPath, ["--version"]);
+        let version = "";
+        versionCheck.stdout?.on("data", (data) => {
+            version += data.toString();
+        });
+        versionCheck.stderr?.on("data", (data) => {
+            version += data.toString();
+        });
+        versionCheck.on("close", () => {
+            vscode.window.showInformationMessage(`Python found: ${pythonPath}\nVersion: ${version.trim()}`);
+        });
+    }
+    catch (error) {
+        const action = await vscode.window.showErrorMessage("Python not found! Please install Python or configure the correct path.", "Install Python", "Configure Path", "Help");
+        if (action === "Install Python") {
+            vscode.env.openExternal(vscode.Uri.parse("https://www.python.org/downloads/"));
+        }
+        else if (action === "Configure Path") {
+            vscode.commands.executeCommand("workbench.action.openSettings", "voice-to-code.pythonPath");
+        }
+        else if (action === "Help") {
+            showPythonSetupHelp();
+        }
+    }
+}
+function showPythonSetupHelp() {
+    const helpMessage = `
+**Python Setup Help for Voice to Code Extension**
+
+**Option 1: Install Python**
+1. Go to https://python.org/downloads/
+2. Download and install Python 3.7 or later
+3. Make sure to check "Add Python to PATH" during installation
+
+**Option 2: Configure Python Path**
+1. Open VS Code Settings (Ctrl+,)
+2. Search for "voice-to-code.pythonPath"
+3. Set the full path to your Python executable
+
+**Common Python Paths:**
+- Windows: C:\\Python39\\python.exe
+- macOS: /usr/local/bin/python3
+- Linux: /usr/bin/python3
+
+**Install Dependencies:**
+After Python is set up, run:
+\`pip install SpeechRecognition\`
+
+**Test Python:**
+Use the command "Voice to Code: Check Python Setup" to verify your installation.
+  `;
+    vscode.window.showInformationMessage(helpMessage, { modal: true });
 }
 async function startListening(context) {
     if (isListening) {
@@ -107,16 +198,14 @@ async function startListening(context) {
         }
     }
     const config = vscode.workspace.getConfiguration("voice-to-code");
-    const pythonPath = config.get("pythonPath", "python");
     const language = config.get("language", "en-US");
     try {
-        // Check if Python is available
-        await checkPythonAvailability(pythonPath);
-        // Try the web-based script first, fallback to original if needed
+        // Find Python executable
+        const pythonPath = await findPythonExecutable();
+        // Check if the web script exists, otherwise use fallback
         const pythonScriptPath = path.join(context.extensionPath, "python", "voice_listen_web.py");
         const fallbackScriptPath = path.join(context.extensionPath, "python", "voice_listen.py");
         let scriptToUse = pythonScriptPath;
-        // Check if the web script exists, otherwise use fallback
         try {
             if (!fs.existsSync(pythonScriptPath)) {
                 scriptToUse = fallbackScriptPath;
@@ -141,7 +230,18 @@ async function startListening(context) {
             const error = data.toString();
             console.error("Python script error:", error);
             if (error.includes("ModuleNotFoundError")) {
-                vscode.window.showErrorMessage("Required Python modules not found. Please install dependencies: pip install SpeechRecognition");
+                vscode.window
+                    .showErrorMessage("Required Python modules not found. Please install: pip install SpeechRecognition", "Install Dependencies", "Help")
+                    .then((action) => {
+                    if (action === "Install Dependencies") {
+                        const terminal = vscode.window.createTerminal("Voice to Code Setup");
+                        terminal.sendText("pip install SpeechRecognition");
+                        terminal.show();
+                    }
+                    else if (action === "Help") {
+                        showPythonSetupHelp();
+                    }
+                });
             }
             else if (error.includes("Microphone initialization failed")) {
                 vscode.window.showErrorMessage("Microphone access failed. Please check microphone permissions and try again.");
@@ -161,7 +261,22 @@ async function startListening(context) {
         });
     }
     catch (error) {
-        vscode.window.showErrorMessage(`Error starting voice listening: ${error}`);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes("Python executable not found")) {
+            const action = await vscode.window.showErrorMessage("Python not found! Voice to Code requires Python to be installed.", "Install Python", "Configure Path", "Help");
+            if (action === "Install Python") {
+                vscode.env.openExternal(vscode.Uri.parse("https://www.python.org/downloads/"));
+            }
+            else if (action === "Configure Path") {
+                vscode.commands.executeCommand("workbench.action.openSettings", "voice-to-code.pythonPath");
+            }
+            else if (action === "Help") {
+                showPythonSetupHelp();
+            }
+        }
+        else {
+            vscode.window.showErrorMessage(`Error starting voice listening: ${errorMessage}`);
+        }
     }
 }
 function stopListening() {
